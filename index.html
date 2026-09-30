@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>반려동물 안구질환 검사</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --line: #e3e6ea;
+    --text: #1f2933;
+    --muted: #6b7684;
+    --accent: #2f6fed;
+    --bad: #c0392b;
+    --ok: #3f9142;
+    --bar: #d8dde3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1c2027; --line: #2c323b; --text: #e8ebef;
+      --muted: #9aa4b2; --accent: #5b8def; --bar: #2c323b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 64px;
+    font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1rem; margin: 0 0 12px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], select {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: .95rem; font-family: inherit;
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 180px; }
+  button {
+    padding: 9px 16px; border: 0; border-radius: 8px; background: var(--accent);
+    color: #fff; font-size: .95rem; font-family: inherit; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #drop {
+    border: 2px dashed var(--line); border-radius: 12px; padding: 32px 16px;
+    text-align: center; color: var(--muted); cursor: pointer;
+  }
+  #drop.over { border-color: var(--accent); color: var(--accent); }
+  #preview { max-width: 100%; max-height: 280px; border-radius: 8px; display: block; margin: 12px auto 0; }
+  .status { font-size: .88rem; margin-top: 10px; }
+  .status.err { color: var(--bad); }
+  .status.ok { color: var(--ok); }
+  .summary { font-size: 1.05rem; font-weight: 600; margin: 0 0 14px; }
+  .item { margin-bottom: 12px; }
+  .item .top { display: flex; justify-content: space-between; gap: 12px; font-size: .92rem; }
+  .item .name { font-weight: 600; }
+  .item .meta { color: var(--muted); font-size: .85rem; }
+  .track { height: 8px; border-radius: 4px; background: var(--bar); margin-top: 5px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 4px; background: var(--ok); }
+  .fill.bad { background: var(--bad); }
+  .tag { font-size: .78rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.bad { color: var(--bad); border-color: var(--bad); }
+  .note { font-size: .82rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+  code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: .85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>반려동물 안구질환 검사</h1>
+  <p class="sub">눈 사진을 올리면 증상별 이상 확률을 보여 줍니다. 진단이 아니며 참고용입니다.</p>
+
+  <div class="card">
+    <h2>1. 서버 연결</h2>
+    <label for="api">API 주소 — 페이지를 열면 자동으로 연결합니다</label>
+    <div class="row">
+      <input type="text" id="api" placeholder="https://pet-eye-api.ngrok-free.app" style="flex:3 1 320px">
+      <button class="ghost" id="check" style="flex:0 0 auto">다시 연결</button>
+    </div>
+    <div class="status" id="apiStatus">연결 중…</div>
+  </div>
+
+  <div class="card">
+    <h2>2. 사진 올리기</h2>
+    <div class="row" style="margin-bottom:12px">
+      <div>
+        <label for="species">종</label>
+        <select id="species">
+          <option value="cat">고양이</option>
+          <option value="dog">강아지</option>
+          <option value="all">전체</option>
+        </select>
+      </div>
+      <div>
+        <label for="us">초음파 모델</label>
+        <select id="us">
+          <option value="false">제외 (일반 사진)</option>
+          <option value="true">포함</option>
+        </select>
+      </div>
+      <div>
+        <label for="th">의심 판정 기준</label>
+        <select id="th">
+          <option value="0.3">30% 이상</option>
+          <option value="0.5" selected>50% 이상</option>
+          <option value="0.7">70% 이상</option>
+        </select>
+      </div>
+    </div>
+    <div id="drop">여기를 누르거나 사진을 끌어다 놓으세요</div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <img id="preview" alt="" hidden>
+    <div class="status" id="upStatus"></div>
+  </div>
+
+  <div class="card" id="resultCard" hidden>
+    <h2>3. 검사 결과</h2>
+    <p class="summary" id="summary"></p>
+    <div id="list"></div>
+    <p class="note">
+      증상별 모델은 각자 자기 증상 데이터만 보고 학습했습니다. 확률을 서로 비교하기보다 항목별로 따로 참고해 주세요.
+      이 결과는 진단이 아니며, 실제 판단은 수의사의 몫입니다.
+    </p>
+  </div>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const KEY = 'petEyeApiUrl';
+
+// 기본 API 주소입니다. 페이지를 열면 이 주소로 자동 연결합니다.
+// 백엔드 주소가 바뀌면 이 한 줄만 고쳐서 다시 올리시면 됩니다.
+// (Hugging Face Space 를 쓰실 때는 https://<계정>-pet-eye-api.hf.space 로 바꾸세요)
+const DEFAULT_API = 'blinks-abstract-backslid.ngrok-free.dev';
+
+// ngrok 무료 플랜은 브라우저 요청에 경고 페이지를 끼워 넣습니다.
+// 이 헤더를 보내면 JSON이 그대로 옵니다.
+const HEADERS = { 'ngrok-skip-browser-warning': 'true' };
+
+function apiBase() {
+  return $('api').value.trim().replace(/\/+$/, '');
+}
+
+function setStatus(el, msg, kind) {
+  el.textContent = msg;
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+// 주소를 정합니다. 우선순위: 주소창의 ?api= → 저장해 둔 값 → 기본값
+function initialApi() {
+  const q = new URLSearchParams(location.search).get('api');
+  if (q) return q;
+  try {
+    const saved = localStorage.getItem(KEY);
+    if (saved) return saved;
+  } catch (e) {}
+  return DEFAULT_API;
+}
+
+$('api').addEventListener('change', () => {
+  try { localStorage.setItem(KEY, apiBase()); } catch (e) {}
+  connect();
+});
+
+$('check').addEventListener('click', () => connect());
+
+async function connect(quiet) {
+  const base = apiBase();
+  if (!base) { setStatus($('apiStatus'), 'API 주소를 넣어 주세요.', 'err'); return false; }
+  if (!quiet) setStatus($('apiStatus'), '연결 중…');
+  try {
+    const r = await fetch(base + '/health', { headers: HEADERS });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    setStatus($('apiStatus'), `연결됨 — 모델 ${j.models}개 (${j.diseases.join(', ')})`, 'ok');
+    try { localStorage.setItem(KEY, base); } catch (e) {}
+    return true;
+  } catch (e) {
+    setStatus($('apiStatus'),
+      '연결 실패: ' + e.message + ' — 백엔드(Colab 노트북 또는 Space)가 실행 중인지 확인해 주세요.', 'err');
+    return false;
+  }
+}
+
+// 페이지를 열면 바로 연결합니다. 백엔드가 깨어나는 중일 수 있어 실패하면 한 번 더 시도합니다.
+$('api').value = initialApi();
+connect().then(ok => { if (!ok) setTimeout(() => connect(true), 3000); });
+
+$('drop').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', (e) => { if (e.target.files[0]) send(e.target.files[0]); });
+
+['dragenter', 'dragover'].forEach(ev => $('drop').addEventListener(ev, (e) => {
+  e.preventDefault(); $('drop').classList.add('over');
+}));
+['dragleave', 'drop'].forEach(ev => $('drop').addEventListener(ev, (e) => {
+  e.preventDefault(); $('drop').classList.remove('over');
+}));
+$('drop').addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files[0];
+  if (f) send(f);
+});
+
+async function send(file) {
+  const base = apiBase();
+  if (!base) { setStatus($('upStatus'), 'API 주소를 먼저 넣어 주세요.', 'err'); return; }
+
+  $('preview').src = URL.createObjectURL(file);
+  $('preview').hidden = false;
+  setStatus($('upStatus'), `${file.name} 검사 중…`);
+  $('resultCard').hidden = true;
+
+  const q = new URLSearchParams({
+    species: $('species').value,
+    include_us: $('us').value,
+    threshold: $('th').value,
+  });
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const r = await fetch(`${base}/predict?${q}`, { method: 'POST', body: form, headers: HEADERS });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+    render(j);
+    setStatus($('upStatus'), `${file.name} — 검사 완료`, 'ok');
+  } catch (e) {
+    setStatus($('upStatus'), '검사 실패: ' + e.message, 'err');
+  }
+}
+
+function render(j) {
+  const pct = (v) => (v * 100).toFixed(1) + '%';
+  $('summary').textContent = j.top
+    ? `${j.suspect_count}개 증상 의심 — 1순위 ${j.top.label} ${pct(j.top.abnormal)} (${j.top.finding})`
+    : `이상 소견 없음 — 모든 증상이 기준(${pct(j.threshold)}) 미만입니다`;
+
+  $('list').innerHTML = j.results.map(r => {
+    const bad = r.verdict === '의심';
+    return `<div class="item">
+      <div class="top">
+        <span class="name">${r.label}</span>
+        <span>
+          <span class="tag ${bad ? 'bad' : ''}">${r.verdict}</span>
+          <strong>${pct(r.abnormal)}</strong>
+        </span>
+      </div>
+      <div class="track"><div class="fill ${bad ? 'bad' : ''}" style="width:${(r.abnormal * 100).toFixed(1)}%"></div></div>
+      <div class="meta">소견 ${r.finding} · ${pct(r.finding_prob)}</div>
+    </div>`;
+  }).join('');
+
+  $('resultCard').hidden = false;
+}
+</script>
+</body>
+</html>
